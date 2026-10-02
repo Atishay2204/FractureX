@@ -11,10 +11,28 @@ st.set_page_config(
     layout="wide"
 )
 
+import os
+import urllib.request
+import zipfile
+
 # Load model (cached so it only loads once)
 @st.cache_resource
 def load_model():
-    return YOLO("best.pt")
+    if not os.path.exists("best.pt"):
+        url = "https://github.com/Atishay2204/bone-fracture-detection/releases/download/v1.0/best.zip"
+        with st.spinner("Downloading AI model weights (this takes a minute on first run)..."):
+            urllib.request.urlretrieve(url, "best.zip")
+            with zipfile.ZipFile("best.zip", 'r') as zip_ref:
+                zip_ref.extractall(".")
+            os.remove("best.zip") # Clean up
+            
+    # Search for the extracted .pt file (in case it was zipped inside a folder)
+    for root, dirs, files in os.walk("."):
+        for file in files:
+            if file.endswith(".pt"):
+                return YOLO(os.path.join(root, file))
+                
+    raise FileNotFoundError("Could not find the .pt file after extracting!")
 
 model = load_model()
 
