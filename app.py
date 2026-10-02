@@ -21,18 +21,29 @@ def load_model():
     if not os.path.exists("best.pt"):
         url = "https://github.com/Atishay2204/bone-fracture-detection/releases/download/v1.0/best.zip"
         with st.spinner("Downloading AI model weights (this takes a minute on first run)..."):
-            urllib.request.urlretrieve(url, "best.zip")
-            with zipfile.ZipFile("best.zip", 'r') as zip_ref:
-                zip_ref.extractall(".")
-            os.remove("best.zip") # Clean up
+            urllib.request.urlretrieve(url, "best_downloaded.zip")
             
-    # Search for the extracted .pt file (in case it was zipped inside a folder)
-    for root, dirs, files in os.walk("."):
-        for file in files:
-            if file.endswith(".pt"):
-                return YOLO(os.path.join(root, file))
+            # Check what is actually inside the zip
+            with zipfile.ZipFile("best_downloaded.zip", 'r') as zip_ref:
+                file_list = zip_ref.namelist()
                 
-    raise FileNotFoundError("Could not find the .pt file after extracting!")
+            pt_files = [f for f in file_list if f.endswith('.pt')]
+            
+            if len(pt_files) > 0:
+                # It's a standard zip folder containing a .pt file
+                with zipfile.ZipFile("best_downloaded.zip", 'r') as zip_ref:
+                    zip_ref.extractall(".")
+                os.remove("best_downloaded.zip")
+                for root, dirs, files in os.walk("."):
+                    for file in files:
+                        if file.endswith(".pt"):
+                            return YOLO(os.path.join(root, file))
+            else:
+                # The .zip file IS the PyTorch file! (PyTorch saves weights as zip files)
+                os.rename("best_downloaded.zip", "best.pt")
+                return YOLO("best.pt")
+                
+    return YOLO("best.pt")
 
 model = load_model()
 
