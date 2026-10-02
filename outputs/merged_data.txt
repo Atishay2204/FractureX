@@ -1,0 +1,15 @@
+path: /kaggle/working/merged_dataset
+train: train/images
+val: val/images
+test: test/images
+nc: 9
+names:
+- elbow_fracture
+- finger_fracture
+- forearm_fracture
+- humerus_fracture
+- shoulder_fracture
+- wrist_fracture
+- hand_fracture
+- hip_fracture
+- leg_fracture
