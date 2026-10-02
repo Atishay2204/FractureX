@@ -184,6 +184,15 @@ hr { border-color: var(--line) !important; }
     padding: .8rem .9rem; font-size: .83rem; color: var(--ink);
 }
 
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin: 1.2rem 0 .4rem 0; }
+.step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .75rem 1rem; }
+.step b { display: block; margin-bottom: .1rem; }
+.step span { color: var(--muted); font-size: .85rem; }
+.next { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+        border-radius: 10px; padding: .85rem 1rem; margin-top: .9rem; font-size: .92rem; }
+.next b { display: block; margin-bottom: .2rem; }
+.privacy { color: var(--muted); font-size: .8rem; margin-top: .6rem; }
+@media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
 @media (max-width: 760px) {
     .hero h1 { font-size: 2.1rem; }
     .stats { grid-template-columns: 1fr; }
@@ -240,10 +249,10 @@ CLASS_NAMES = {
 
 def confidence_band(pct: float):
     if pct >= 70:
-        return "hi", "High confidence"
+        return "hi", "Likely"
     if pct >= 40:
-        return "mid", "Moderate confidence"
-    return "lo", "Low confidence, review closely"
+        return "mid", "Possible"
+    return "lo", "Unsure, worth a second look"
 
 
 def to_png_bytes(arr: np.ndarray) -> bytes:
@@ -253,20 +262,59 @@ def to_png_bytes(arr: np.ndarray) -> bytes:
 
 
 # ─────────────────────────────────────────────────────────────
+# Settings (plain language; the technical threshold stays hidden)
+# ─────────────────────────────────────────────────────────────
+SENSITIVITY = {
+    "Strict: fewer alerts": 50,
+    "Balanced (recommended)": 25,
+    "Sensitive: more alerts": 15,
+}
+MAX_MB = 10
+
+with st.sidebar:
+    st.markdown("### About this tool")
+    st.markdown(
+        "This tool looks at an X-ray image and highlights areas that may show a broken bone. "
+        "It checks nine body regions."
+    )
+    with st.expander("Which body parts are covered?"):
+        for v in CLASS_NAMES.values():
+            st.markdown(f"- {v.replace(' fracture', '')}")
+    with st.expander("What it cannot do"):
+        st.markdown(
+            "- It cannot replace a doctor.\n"
+            "- It can miss small or unusual fractures.\n"
+            "- It can highlight healthy bone by mistake.\n"
+            "- It does not check for other conditions."
+        )
+    with st.expander("Advanced settings"):
+        level = st.select_slider(
+            "How cautious should the check be?",
+            options=list(SENSITIVITY.keys()),
+            value="Balanced (recommended)",
+            help="Sensitive shows more possible fractures but also more false alarms. "
+            "Strict shows fewer, but may miss subtle ones.",
+        )
+    confidence = SENSITIVITY[level]
+    st.markdown(
+        '<div class="disclaimer"><b>For education and demonstration only.</b> '
+        "Only a qualified doctor can diagnose a fracture.</div>",
+        unsafe_allow_html=True,
+    )
+
+# ─────────────────────────────────────────────────────────────
 # Header
 # ─────────────────────────────────────────────────────────────
 st.markdown(
     """
 <div class="hero">
-  <h1>Fracture screening for X-rays</h1>
-  <p>Upload a scan and the model marks where it sees a possible fracture and names the region.
-  Results are a second look, not a diagnosis.</p>
-  <div class="hero-meta">
-    <span><b>YOLOv8l</b> detector</span>
-    <span><b>9</b> body regions</span>
-    <span><b>15,000+</b> training images</span>
-    <span><b>51.5%</b> mAP50</span>
-  </div>
+  <h1>Bone fracture check</h1>
+  <p>Upload an X-ray image. The tool marks areas that may show a broken bone and tells you where.</p>
+</div>
+<div class="steps">
+  <div class="step"><b>1. Upload</b><span>Choose an X-ray image from your device.</span></div>
+  <div class="step"><b>2. Wait a few seconds</b><span>The check starts on its own.</span></div>
+  <div class="step"><b>3. Review</b><span>See the marked areas and share them with your doctor.</span></div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -274,96 +322,91 @@ st.markdown(
 st.write("")
 
 # ─────────────────────────────────────────────────────────────
-# Sidebar
-# ─────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("### Settings")
-    confidence = st.slider(
-        "Minimum confidence (%)",
-        min_value=10,
-        max_value=90,
-        value=25,
-        step=5,
-        help="Lower shows more possible fractures but adds false alarms. Higher shows fewer, more certain ones.",
-    )
-    st.caption("Change this, then select **Analyze scan** again to apply it.")
-
-    with st.expander("Regions the model covers"):
-        for v in CLASS_NAMES.values():
-            st.markdown(f"- {v.replace(' fracture', '')}")
-
-    st.write("")
-    st.markdown(
-        '<div class="disclaimer"><b>For education and demonstration only.</b> '
-        "A qualified radiologist must confirm any clinical finding.</div>",
-        unsafe_allow_html=True,
-    )
-
-# ─────────────────────────────────────────────────────────────
 # Main layout
 # ─────────────────────────────────────────────────────────────
 left, right = st.columns([1, 1], gap="large")
 
 with left:
-    st.markdown('<p class="panel-title">1. Scan</p>', unsafe_allow_html=True)
+    st.markdown('<p class="panel-title">Your X-ray</p>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader(
-        "Upload an X-ray (JPG or PNG)",
+        "Upload an X-ray (JPG or PNG, up to 10 MB)",
         type=["jpg", "jpeg", "png"],
         label_visibility="collapsed",
+        help="JPG or PNG, up to 10 MB.",
+    )
+    with st.expander("Tips for a better result"):
+        st.markdown(
+            "- Use a clear X-ray, not a blurry or cropped photo.\n"
+            "- Make sure the whole bone and the joints beside it are in the picture.\n"
+            "- If you photograph a film, avoid glare and shadows.\n"
+            "- Upload one body part at a time."
+        )
+    st.markdown(
+        '<p class="privacy">This app does not save your image.</p>',
+        unsafe_allow_html=True,
     )
 
-    image = None
+    image, load_error = None, None
     if uploaded_file:
-        image = Image.open(uploaded_file).convert("RGB")
-        st.image(image, caption=f"{uploaded_file.name} · {image.width}×{image.height}px", use_container_width=True)
-        analyze = st.button("Analyze scan", type="primary", use_container_width=True)
+        if uploaded_file.size > MAX_MB * 1024 * 1024:
+            load_error = f"This file is larger than {MAX_MB} MB. Please upload a smaller image."
+        else:
+            try:
+                image = Image.open(uploaded_file).convert("RGB")
+            except Exception:
+                load_error = "We could not open this file. Please upload a valid JPG or PNG image."
+        if load_error:
+            st.error(load_error)
+        else:
+            st.image(image, caption=uploaded_file.name, use_container_width=True)
     else:
-        analyze = False
-        # Clear any old result when the file is removed
         st.session_state.pop("result", None)
+        st.session_state.pop("run_key", None)
 
-# Run inference and keep the result, so it survives reruns (e.g. moving the slider)
-if uploaded_file and analyze:
-    with right:
-        with st.spinner("Analyzing scan..."):
-            start = time.perf_counter()
-            results = model.predict(np.array(image), conf=confidence / 100, verbose=False)
-            elapsed_ms = (time.perf_counter() - start) * 1000
-
-            annotated = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB)
-            rows = []
-            for box in results[0].boxes:
-                class_id = int(box.cls[0])
-                rows.append(
-                    {
-                        "Region": CLASS_NAMES.get(class_id, f"Class {class_id}"),
-                        "Confidence": float(box.conf[0]) * 100,
+# The check runs automatically when a new image is uploaded or the setting changes
+analysis_error = None
+if image is not None:
+    run_key = (uploaded_file.name, uploaded_file.size, confidence)
+    if st.session_state.get("run_key") != run_key:
+        with right:
+            with st.spinner("Checking your X-ray. This takes a few seconds..."):
+                try:
+                    start = time.perf_counter()
+                    results = model.predict(np.array(image), conf=confidence / 100, verbose=False)
+                    elapsed = time.perf_counter() - start
+                    annotated = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB)
+                    rows = [
+                        {
+                            "Region": CLASS_NAMES.get(int(b.cls[0]), f"Class {int(b.cls[0])}"),
+                            "Confidence": float(b.conf[0]) * 100,
+                        }
+                        for b in results[0].boxes
+                    ]
+                    rows.sort(key=lambda r: r["Confidence"], reverse=True)
+                    st.session_state["result"] = {
+                        "file": uploaded_file.name,
+                        "image": annotated,
+                        "rows": rows,
+                        "secs": elapsed,
                     }
-                )
-            rows.sort(key=lambda r: r["Confidence"], reverse=True)
-
-    st.session_state["result"] = {
-        "file": uploaded_file.name,
-        "image": annotated,
-        "rows": rows,
-        "ms": elapsed_ms,
-        "threshold": confidence,
-    }
+                    st.session_state["run_key"] = run_key
+                except Exception:
+                    st.session_state.pop("result", None)
+                    st.session_state.pop("run_key", None)
+                    analysis_error = "Something went wrong while checking this image. Please try again or use a different image."
 
 with right:
-    st.markdown('<p class="panel-title">2. Findings</p>', unsafe_allow_html=True)
+    st.markdown('<p class="panel-title">Results</p>', unsafe_allow_html=True)
     result = st.session_state.get("result")
 
-    if not uploaded_file or not result:
+    if analysis_error:
+        st.error(analysis_error)
+    elif image is None or not result:
         st.markdown(
             """
 <div class="empty">
-  <h4>No scan analyzed yet</h4>
-  <ol>
-    <li>Upload an X-ray on the left.</li>
-    <li>Set the minimum confidence in the sidebar if you want to change it.</li>
-    <li>Select <b>Analyze scan</b>.</li>
-  </ol>
+  <h4>Your results will appear here</h4>
+  Upload an X-ray on the left. The check starts automatically.
 </div>
 """,
             unsafe_allow_html=True,
@@ -372,41 +415,28 @@ with right:
         rows = result["rows"]
         n = len(rows)
 
-        # Verdict banner
         if n == 0:
             st.markdown(
-                f'<div class="verdict clear">No fractures found at {result["threshold"]}% confidence or higher.'
-                "<small>Try a lower threshold if you suspect a subtle fracture.</small></div>",
+                '<div class="verdict clear">No fracture found in this image.'
+                "<small>This does not rule out a fracture. If you are in pain, see a doctor.</small></div>",
                 unsafe_allow_html=True,
             )
         else:
+            regions = ", ".join(dict.fromkeys(r["Region"].replace(" fracture", "").lower() for r in rows))
             st.markdown(
-                f'<div class="verdict signal">{n} possible fracture{"s" if n != 1 else ""} marked.'
-                "<small>Review each box on the image below.</small></div>",
+                f'<div class="verdict signal">Possible fracture found: {regions}.'
+                "<small>Look at the marked areas below and show this to a doctor.</small></div>",
                 unsafe_allow_html=True,
             )
 
-        # Stats
-        top = f'{rows[0]["Confidence"]:.0f}%' if n else "–"
-        st.markdown(
-            f"""
-<div class="stats">
-  <div class="stat {'signal' if n else 'clear'}"><div class="v">{n}</div><div class="l">Findings</div></div>
-  <div class="stat"><div class="v">{top}</div><div class="l">Highest confidence</div></div>
-  <div class="stat"><div class="v">{result['ms']/1000:.1f}s</div><div class="l">Analysis time</div></div>
-</div>
-""",
-            unsafe_allow_html=True,
+        st.image(
+            result["image"],
+            caption="Marked areas show where the tool sees a possible fracture.",
+            use_container_width=True,
         )
 
-        st.image(result["image"], caption="Model output. Boxes show suspected fracture locations.", use_container_width=True)
-
-        if result["threshold"] != confidence:
-            st.info(f"Showing results at {result['threshold']}%. Select Analyze scan again to use {confidence}%.")
-
-        # Finding cards
         if n:
-            st.write("")
+            st.markdown('<p class="panel-title" style="margin-top:1rem">What it found</p>', unsafe_allow_html=True)
             for r in rows:
                 band, label = confidence_band(r["Confidence"])
                 st.markdown(
@@ -414,24 +444,31 @@ with right:
 <div class="finding">
   <div class="top">
     <span class="name">{r['Region']}</span>
-    <span class="pct">{r['Confidence']:.1f}%</span>
+    <span class="tag">{label} · {r['Confidence']:.0f}%</span>
   </div>
-  <div class="tag">{label}</div>
   <div class="bar"><span class="{band}" style="width:{r['Confidence']:.0f}%"></span></div>
 </div>
 """,
                     unsafe_allow_html=True,
                 )
 
-        # Downloads
+        st.markdown(
+            """
+<div class="next"><b>What to do next</b>
+Show this result and your original X-ray to a doctor or radiologist.
+Do not use it to decide on treatment.</div>
+""",
+            unsafe_allow_html=True,
+        )
+
         st.write("")
-        d1, d2 = st.columns(2)
         stem = os.path.splitext(result["file"])[0]
+        d1, d2 = st.columns(2)
         with d1:
             st.download_button(
-                "Download annotated image",
+                "Save marked image",
                 data=to_png_bytes(result["image"]),
-                file_name=f"{stem}_annotated.png",
+                file_name=f"{stem}_marked.png",
                 mime="image/png",
                 use_container_width=True,
             )
@@ -439,9 +476,9 @@ with right:
             if n:
                 df = pd.DataFrame(rows).round({"Confidence": 1})
                 st.download_button(
-                    "Download findings (CSV)",
+                    "Save results (CSV)",
                     data=df.to_csv(index=False).encode("utf-8"),
-                    file_name=f"{stem}_findings.csv",
+                    file_name=f"{stem}_results.csv",
                     mime="text/csv",
                     use_container_width=True,
                 )
