@@ -1,0 +1,31 @@
+# Large data files - never commit these
+data/
+outputs/best.zip
+outputs/*.zip
+checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model weights (use Git LFS or upload separately)
+*.pt
+*.pth
+
+# Environment
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
