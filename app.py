@@ -278,9 +278,13 @@ def to_png_bytes(arr: np.ndarray) -> bytes:
 # Settings (plain language; the technical threshold stays hidden)
 # ─────────────────────────────────────────────────────────────
 SENSITIVITY = {
-    "Strict: fewer alerts": 65,
-    "Balanced (recommended)": 45,
-    "Sensitive: more alerts": 30,
+    # The lightweight retrained detector produces lower confidence scores than
+    # the old model. A 45% default hid genuine detections, so use a lower
+    # screening threshold and leave the stricter settings available.
+    "Strict: fewer alerts": 35,
+    "Balanced (recommended)": 20,
+    "Sensitive: more alerts": 10,
+    "Very sensitive: test low-confidence findings": 5,
 }
 MAX_MB = 10
 
@@ -385,9 +389,8 @@ if image is not None:
             with st.spinner("Checking your X-ray. This takes a few seconds..."):
                 try:
                     start = time.perf_counter()
-                    # Match the corrected model's 640px training resolution and use a
-                    # tighter NMS setting.  The previous 0.25 default threshold was
-                    # responsible for many low-confidence false alerts.
+                    # Match the corrected model's 640px training resolution. The
+                    # threshold comes from the selected screening sensitivity.
                     results = model.predict(
                         np.array(image),
                         imgsz=640,
