@@ -20,6 +20,7 @@ build/
 # Model weights (use Git LFS or upload separately)
 *.pt
 *.pth
+!best_verified_light.pt
 
 # Environment
 .env

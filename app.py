@@ -1,8 +1,6 @@
 import io
 import os
 import time
-import urllib.request
-import zipfile
 
 import cv2
 import numpy as np
@@ -208,43 +206,58 @@ hr { border-color: var(--line) !important; }
 # ─────────────────────────────────────────────────────────────
 # Model
 # ─────────────────────────────────────────────────────────────
-MODEL_URL = "https://github.com/Atishay2204/bone-fracture-detection/releases/download/v1.0/best.zip"
+VERIFIED_CLASSES = (
+    "elbow_fracture",
+    "finger_fracture",
+    "forearm_fracture",
+    "humerus_fracture",
+    "shoulder_fracture",
+    "wrist_fracture",
+)
 
 
 @st.cache_resource
 def load_model():
-    if not os.path.exists("best.pt"):
-        with st.spinner("Downloading model weights. This only happens on the first run."):
-            urllib.request.urlretrieve(MODEL_URL, "best_downloaded.zip")
-            with zipfile.ZipFile("best_downloaded.zip", "r") as zf:
-                pt_files = [f for f in zf.namelist() if f.endswith(".pt")]
-                if pt_files:
-                    zf.extractall(".")
-            if pt_files:
-                os.remove("best_downloaded.zip")
-                for root, _, files in os.walk("."):
-                    for f in files:
-                        if f.endswith(".pt"):
-                            return YOLO(os.path.join(root, f))
-            else:
-                # The download itself is the PyTorch weights file (.pt files are zip archives)
-                os.rename("best_downloaded.zip", "best.pt")
-    return YOLO("best.pt")
+    # Do not fall back to the old nine-class release: it was trained with
+    # unverified FracAtlas anatomy labels and is the source of the shoulder bias.
+    candidates = [
+        os.environ.get("FRACTURE_MODEL_PATH"),
+        "best_verified_light.pt",
+        os.path.join("outputs", "Newbest.zip"),
+    ]
+    model_path = next((path for path in candidates if path and os.path.isfile(path)), None)
+    if model_path is None:
+        raise FileNotFoundError(
+            "Corrected model weights are missing. Add best_verified_light.pt to the "
+            "deployment or set FRACTURE_MODEL_PATH to the verified checkpoint."
+        )
+    return YOLO(model_path)
 
 
 model = load_model()
 
+
+def display_name(name: str) -> str:
+    """Turn the class name stored in a YOLO checkpoint into UI text."""
+    return str(name).replace("_", " ").strip().capitalize()
+
+
+# The checkpoint is the source of truth for class IDs. Keeping a second,
+# hard-coded mapping here can silently display the wrong anatomy after a model
+# is retrained with a corrected class list.
 CLASS_NAMES = {
-    0: "Elbow fracture",
-    1: "Finger fracture",
-    2: "Forearm fracture",
-    3: "Humerus fracture",
-    4: "Shoulder fracture",
-    5: "Wrist fracture",
-    6: "Hand fracture",
-    7: "Hip fracture",
-    8: "Leg fracture",
+    int(class_id): display_name(name)
+    for class_id, name in model.names.items()
 }
+
+MODEL_CLASSES = tuple(str(model.names[i]) for i in sorted(model.names))
+if MODEL_CLASSES != VERIFIED_CLASSES:
+    st.error(
+        "This app has stopped the legacy checkpoint because its anatomy labels are not "
+        "verified. Deploy the retrained 6-class checkpoint and set FRACTURE_MODEL_PATH "
+        "to its path before running the app."
+    )
+    st.stop()
 
 
 def confidence_band(pct: float):
@@ -265,9 +278,9 @@ def to_png_bytes(arr: np.ndarray) -> bytes:
 # Settings (plain language; the technical threshold stays hidden)
 # ─────────────────────────────────────────────────────────────
 SENSITIVITY = {
-    "Strict: fewer alerts": 50,
-    "Balanced (recommended)": 25,
-    "Sensitive: more alerts": 15,
+    "Strict: fewer alerts": 65,
+    "Balanced (recommended)": 45,
+    "Sensitive: more alerts": 30,
 }
 MAX_MB = 10
 
@@ -275,7 +288,7 @@ with st.sidebar:
     st.markdown("### About this tool")
     st.markdown(
         "This tool looks at an X-ray image and highlights areas that may show a broken bone. "
-        "It checks nine body regions."
+        f"It checks {len(CLASS_NAMES)} body-region categories."
     )
     with st.expander("Which body parts are covered?"):
         for v in CLASS_NAMES.values():
@@ -372,7 +385,17 @@ if image is not None:
             with st.spinner("Checking your X-ray. This takes a few seconds..."):
                 try:
                     start = time.perf_counter()
-                    results = model.predict(np.array(image), conf=confidence / 100, verbose=False)
+                    # Match the corrected model's 640px training resolution and use a
+                    # tighter NMS setting.  The previous 0.25 default threshold was
+                    # responsible for many low-confidence false alerts.
+                    results = model.predict(
+                        np.array(image),
+                        imgsz=640,
+                        conf=confidence / 100,
+                        iou=0.45,
+                        max_det=3,
+                        verbose=False,
+                    )
                     elapsed = time.perf_counter() - start
                     annotated = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB)
                     rows = [
@@ -417,7 +440,7 @@ with right:
 
         if n == 0:
             st.markdown(
-                '<div class="verdict clear">No fracture found in this image.'
+                '<div class="verdict clear">No high-confidence fracture finding.'
                 "<small>This does not rule out a fracture. If you are in pain, see a doctor.</small></div>",
                 unsafe_allow_html=True,
             )
