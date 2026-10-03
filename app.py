@@ -281,10 +281,10 @@ SENSITIVITY = {
     # The lightweight retrained detector produces lower confidence scores than
     # the old model. A 45% default hid genuine detections, so use a lower
     # screening threshold and leave the stricter settings available.
-    "Strict: fewer alerts": 35,
-    "Balanced (recommended)": 20,
-    "Sensitive: more alerts": 10,
-    "Very sensitive: test low-confidence findings": 5,
+    "Strict: fewer alerts": 20,
+    "Balanced: fewer low-confidence alerts": 10,
+    "Sensitive (recommended for screening)": 5,
+    "Very sensitive: test low-confidence findings": 1,
 }
 MAX_MB = 10
 
@@ -308,7 +308,7 @@ with st.sidebar:
         level = st.select_slider(
             "How cautious should the check be?",
             options=list(SENSITIVITY.keys()),
-            value="Balanced (recommended)",
+            value="Sensitive (recommended for screening)",
             help="Sensitive shows more possible fractures but also more false alarms. "
             "Strict shows fewer, but may miss subtle ones.",
         )
@@ -449,9 +449,19 @@ with right:
             )
         else:
             regions = ", ".join(dict.fromkeys(r["Region"].replace(" fracture", "").lower() for r in rows))
+            peak_confidence = rows[0]["Confidence"]
+            if peak_confidence < 10:
+                verdict = (
+                    f'<div class="verdict signal">Low-confidence signal near: {regions}.'
+                    "<small>This is a screening hint, not a diagnosis. A clinician must review the X-ray.</small></div>"
+                )
+            else:
+                verdict = (
+                    f'<div class="verdict signal">Possible fracture found: {regions}.'
+                    "<small>Look at the marked areas below and show this to a doctor.</small></div>"
+                )
             st.markdown(
-                f'<div class="verdict signal">Possible fracture found: {regions}.'
-                "<small>Look at the marked areas below and show this to a doctor.</small></div>",
+                verdict,
                 unsafe_allow_html=True,
             )
 
