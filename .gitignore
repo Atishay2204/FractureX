@@ -21,6 +21,7 @@ build/
 *.pt
 *.pth
 !best_verified_light.pt
+!best_binary_fracture.pt
 
 # Environment
 .env

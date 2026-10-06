@@ -1,21 +1,17 @@
 """
 merge_datasets.py
 =================
-Merges three fracture datasets into a single unified YOLO-format dataset:
+Builds a verified-anatomy YOLO-format dataset from two fracture datasets:
   1. BoneFractureYolo8  (7 classes → remapped)
-  2. FracAtlas          (1 class → split by anatomy using dataset.csv)
-  3. GRAZPEDWRI-DX      (9 classes → only 'fracture' class kept)
+  2. GRAZPEDWRI-DX      (9 classes → only 'fracture' class kept)
 
-Unified 9-class schema:
+Unified 6-class schema:
   0: elbow_fracture
   1: finger_fracture
   2: forearm_fracture
   3: humerus_fracture
   4: shoulder_fracture
   5: wrist_fracture
-  6: hand_fracture
-  7: hip_fracture
-  8: leg_fracture
 
 Usage (on Kaggle):
   python merge_datasets.py
@@ -44,9 +40,6 @@ UNIFIED_CLASSES = [
     'humerus_fracture',  # 3
     'shoulder_fracture', # 4
     'wrist_fracture',    # 5
-    'hand_fracture',     # 6
-    'hip_fracture',      # 7
-    'leg_fracture',      # 8
 ]
 NC = len(UNIFIED_CLASSES)
 
@@ -60,16 +53,6 @@ BONE8_REMAP = {0: 0, 1: 1, 2: 2, 3: 3, 4: 3, 5: 4, 6: 5}
 GRAZ_FRACTURE_CLASS = 3
 GRAZ_TARGET_CLASS   = 5  # wrist_fracture
 
-# FracAtlas: body_part string → unified class id
-FRACATLAS_BODYPART_MAP = {
-    'Hand'    : 6,  # hand_fracture
-    'Hip'     : 7,  # hip_fracture
-    'Leg'     : 8,  # leg_fracture
-    'Shoulder': 4,  # shoulder_fracture
-}
-
-# Train/val/test split ratio for FracAtlas (it has no pre-made split)
-FRACATLAS_SPLIT = (0.75, 0.15, 0.10)
 RANDOM_SEED = 42
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -653,30 +636,11 @@ def main():
     else:
         print('\nWARNING: BoneFractureYolo8 dataset not found under /kaggle/input/')
 
-    # ── Dataset 2: FracAtlas ───────────────────────────────────────────────────
-    fracatlas_zip = None
-    # Check common locations
-    for candidate in [
-        WORKING_DIR / 'data' / 'FracAtlas.zip',
-        Path('/kaggle/input/fracatlas/FracAtlas.zip'),
-        *list(KAGGLE_INPUT.rglob('FracAtlas.zip')),
-        *list(KAGGLE_INPUT.rglob('fracatlas*.zip')),
-    ]:
-        if Path(candidate).exists():
-            fracatlas_zip = Path(candidate)
-            break
-
-    if fracatlas_zip is None:
-        # Maybe already extracted
-        for candidate in KAGGLE_INPUT.rglob('dataset.csv'):
-            if 'frac' in str(candidate).lower():
-                fracatlas_zip = None
-                process_fracatlas_extracted(candidate.parent)
-                break
-        if fracatlas_zip is None:
-            print('\nWARNING: FracAtlas.zip not found. Please upload it as a Kaggle dataset input.')
-    else:
-        process_fracatlas(fracatlas_zip)
+    # FracAtlas annotations in the supplied archive identify a fracture but do
+    # not identify the body region.  Earlier code treated every such image as
+    # a shoulder fracture, which poisoned the shoulder class.  Do not train on
+    # those images until verified per-image anatomy metadata is available.
+    print('\nSkipping FracAtlas: no verified per-image anatomy labels are available.')
 
     # ── Dataset 3: GRAZPEDWRI-DX ──────────────────────────────────────────────
     graz_root = find_graz_root()

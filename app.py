@@ -214,6 +214,7 @@ VERIFIED_CLASSES = (
     "shoulder_fracture",
     "wrist_fracture",
 )
+VERIFIED_CLASS_SCHEMAS = (VERIFIED_CLASSES, ("fracture",))
 
 
 @st.cache_resource
@@ -222,6 +223,7 @@ def load_model():
     # unverified FracAtlas anatomy labels and is the source of the shoulder bias.
     candidates = [
         os.environ.get("FRACTURE_MODEL_PATH"),
+        "best_binary_fracture.pt",
         "best_verified_light.pt",
         os.path.join("outputs", "Newbest.zip"),
     ]
@@ -251,13 +253,14 @@ CLASS_NAMES = {
 }
 
 MODEL_CLASSES = tuple(str(model.names[i]) for i in sorted(model.names))
-if MODEL_CLASSES != VERIFIED_CLASSES:
+if MODEL_CLASSES not in VERIFIED_CLASS_SCHEMAS:
     st.error(
-        "This app has stopped the legacy checkpoint because its anatomy labels are not "
-        "verified. Deploy the retrained 6-class checkpoint and set FRACTURE_MODEL_PATH "
-        "to its path before running the app."
+        "This app has stopped an unsupported checkpoint. Deploy the verified fracture "
+        "checkpoint and set FRACTURE_MODEL_PATH to its path before running the app."
     )
     st.stop()
+
+IS_BINARY_FRACTURE_MODEL = MODEL_CLASSES == ("fracture",)
 
 
 def confidence_band(pct: float):
@@ -292,11 +295,18 @@ with st.sidebar:
     st.markdown("### About this tool")
     st.markdown(
         "This tool looks at an X-ray image and highlights areas that may show a broken bone. "
-        f"It checks {len(CLASS_NAMES)} body-region categories."
+        + (
+            "It screens for fractures without assigning a body-region label."
+            if IS_BINARY_FRACTURE_MODEL
+            else f"It checks {len(CLASS_NAMES)} body-region categories."
+        )
     )
     with st.expander("Which body parts are covered?"):
-        for v in CLASS_NAMES.values():
-            st.markdown(f"- {v.replace(' fracture', '')}")
+        if IS_BINARY_FRACTURE_MODEL:
+            st.markdown("- The model reports possible fracture regions in the X-ray.")
+        else:
+            for v in CLASS_NAMES.values():
+                st.markdown(f"- {v.replace(' fracture', '')}")
     with st.expander("What it cannot do"):
         st.markdown(
             "- It cannot replace a doctor.\n"
@@ -450,14 +460,15 @@ with right:
         else:
             regions = ", ".join(dict.fromkeys(r["Region"].replace(" fracture", "").lower() for r in rows))
             peak_confidence = rows[0]["Confidence"]
+            finding_name = "a possible fracture" if IS_BINARY_FRACTURE_MODEL else regions
             if peak_confidence < 10:
                 verdict = (
-                    f'<div class="verdict signal">Low-confidence signal near: {regions}.'
+                    f'<div class="verdict signal">Low-confidence signal near: {finding_name}.'
                     "<small>This is a screening hint, not a diagnosis. A clinician must review the X-ray.</small></div>"
                 )
             else:
                 verdict = (
-                    f'<div class="verdict signal">Possible fracture found: {regions}.'
+                    f'<div class="verdict signal">Possible fracture found: {finding_name}.'
                     "<small>Look at the marked areas below and show this to a doctor.</small></div>"
                 )
             st.markdown(
