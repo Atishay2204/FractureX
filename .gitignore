@@ -3,6 +3,8 @@ data/
 outputs/best.zip
 outputs/*.zip
 checkpoints/
+outputs/models/
+outputs/legacy/
 
 # Python
 __pycache__/

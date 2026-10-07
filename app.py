@@ -345,7 +345,6 @@ def load_model():
         os.environ.get("FRACTURE_MODEL_PATH"),
         "best_binary_fracture.pt",
         "best_verified_light.pt",
-        os.path.join("outputs", "Newbest.zip"),
     ]
     model_path = next((path for path in candidates if path and os.path.isfile(path)), None)
     if model_path is None:
