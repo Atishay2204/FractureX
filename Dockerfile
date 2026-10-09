@@ -5,10 +5,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system dependencies required by OpenCV and other libraries
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# (Removed because opencv-python-headless does not require these UI libraries)
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
