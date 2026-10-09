@@ -41,16 +41,17 @@ VERIFIED_CLASS_SCHEMAS = (VERIFIED_CLASSES, ("fracture",))
 # Load model
 candidates = [
     os.environ.get("FRACTURE_MODEL_PATH"),
+    "best_binary_fracture.onnx",
     "best_binary_fracture.pt",
     "best_verified_light.pt",
 ]
 model_path = next((path for path in candidates if path and os.path.isfile(path)), None)
 if model_path is None:
     raise FileNotFoundError(
-        "Corrected model weights are missing. Add best_verified_light.pt to the "
+        "Corrected model weights are missing. Add best_binary_fracture.onnx to the "
         "deployment or set FRACTURE_MODEL_PATH to the verified checkpoint."
     )
-model = YOLO(model_path)
+model = YOLO(model_path, task="detect")
 
 def display_name(name: str) -> str:
     return str(name).replace("_", " ").strip().capitalize()

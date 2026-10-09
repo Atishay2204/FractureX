@@ -14,6 +14,7 @@ RUN pip uninstall -y opencv-python && pip install --no-cache-dir --force-reinsta
 
 # Copy the API code and model weights
 COPY api.py .
+COPY best_binary_fracture.onnx .
 COPY best_binary_fracture.pt .
 COPY best_verified_light.pt .
 
