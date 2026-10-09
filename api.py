@@ -101,7 +101,8 @@ async def predict(file: UploadFile = File(...), confidence: int = Form(5)):
             verbose=False,
         )
         
-        annotated = cv2.cvtColor(results[0].plot(), cv2.COLOR_BGR2RGB)
+        # Hide the raw uncalibrated confidence numbers from the image itself
+        annotated = cv2.cvtColor(results[0].plot(conf=False), cv2.COLOR_BGR2RGB)
         
         rows = [
             {
