@@ -1,4 +1,5 @@
 import io
+import hashlib
 import os
 import time
 
@@ -439,12 +440,12 @@ st.markdown(
   <div class="hero-label">Deep Learning · Computer Vision · Medical Imaging</div>
   <h1>Bone Fracture<br><em>Detection System</em></h1>
   <p class="hero-desc">
-    Upload an X-ray and our deep-learning model instantly highlights
-    suspected fracture sites — helping you prepare for a clinical consultation.
+    Take a photo of an X-ray or choose one from your device. Our model highlights
+    suspected fracture sites to help you prepare for a clinical consultation.
   </p>
   <div class="hero-features">
     <div class="hero-feat"><span class="fi">⚡</span>Real-time inference</div>
-    <div class="hero-feat"><span class="fi">🔒</span>Image never saved</div>
+    <div class="hero-feat"><span class="fi">🔒</span>Uploads not persisted</div>
     <div class="hero-feat"><span class="fi">📱</span>Works on any device</div>
     <div class="hero-feat"><span class="fi">🩻</span>YOLO v8 backbone</div>
   </div>
@@ -461,8 +462,8 @@ st.markdown(
 <div class="steps">
   <div class="step-card">
     <div class="step-num">1</div>
-    <div class="step-title">Upload</div>
-    <div class="step-desc">Choose a clear JPG or PNG X-ray from your device.</div>
+    <div class="step-title">Capture or choose</div>
+    <div class="step-desc">Take a photo or select a clear JPG or PNG X-ray.</div>
   </div>
   <div class="step-card">
     <div class="step-num">2</div>
@@ -491,18 +492,32 @@ with left:
   <div class="panel-ico">📤</div>
   <div>
     <div class="panel-ttl">Your X-ray</div>
-    <div class="panel-sub">JPG or PNG · max 10 MB · image never stored</div>
+    <div class="panel-sub">Take a photo or choose a JPG or PNG · max 10 MB</div>
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-    uploaded_file = st.file_uploader(
-        "Upload an X-ray (JPG or PNG, up to 10 MB)",
-        type=["jpg", "jpeg", "png"],
+    image_source = st.radio(
+        "Image source",
+        ["Take a photo", "Choose a file"],
+        horizontal=True,
         label_visibility="collapsed",
-        help="JPG or PNG, up to 10 MB.",
     )
+    selected_file = None
+    if image_source == "Take a photo":
+        camera_file = st.camera_input(
+            "Photograph an X-ray",
+            help="On a phone, this opens the camera. Photograph the X-ray film or screen in good, even light.",
+        )
+        st.caption("Allow camera access when prompted. Camera access requires HTTPS when deployed.")
+        selected_file = camera_file
+    else:
+        uploaded_file = st.file_uploader(
+            "Choose an X-ray image (JPG or PNG, up to 10 MB)",
+            type=["jpg", "jpeg", "png"],
+            help="JPG or PNG, up to 10 MB.",
+        )
     with st.expander("💡 Tips for a better result"):
         st.markdown(
             "- Use a clear X-ray, not a blurry or cropped photo.\n"
@@ -520,23 +535,25 @@ with left:
         )
     confidence = SENSITIVITY[level]
     st.markdown(
-        '<div class="privacy-tag">🔒 This app does not save your image.</div>',
+        '<div class="privacy-tag">🔒 Images are processed for analysis; this demo does not persist uploads.</div>',
         unsafe_allow_html=True,
     )
 
     image, load_error = None, None
-    if uploaded_file:
-        if uploaded_file.size > MAX_MB * 1024 * 1024:
+    if selected_file:
+        source_bytes = selected_file.getvalue()
+        source_name = getattr(selected_file, "name", None) or "camera_capture.png"
+        if len(source_bytes) > MAX_MB * 1024 * 1024:
             load_error = f"This file is larger than {MAX_MB} MB. Please upload a smaller image."
         else:
             try:
-                image = Image.open(uploaded_file).convert("RGB")
+                image = Image.open(io.BytesIO(source_bytes)).convert("RGB")
             except Exception:
                 load_error = "We could not open this file. Please upload a valid JPG or PNG image."
         if load_error:
             st.error(load_error)
         else:
-            st.image(image, caption=uploaded_file.name, use_container_width=True)
+            st.image(image, caption=source_name, use_container_width=True)
     else:
         st.session_state.pop("result", None)
         st.session_state.pop("run_key", None)
@@ -544,7 +561,7 @@ with left:
 # The check runs automatically when a new image is uploaded or the setting changes
 analysis_error = None
 if image is not None:
-    run_key = (uploaded_file.name, uploaded_file.size, confidence)
+    run_key = (hashlib.sha256(source_bytes).hexdigest(), confidence)
     if st.session_state.get("run_key") != run_key:
         with right:
             with st.spinner("Checking your X-ray. This takes a few seconds..."):
@@ -571,7 +588,7 @@ if image is not None:
                     ]
                     rows.sort(key=lambda r: r["Confidence"], reverse=True)
                     st.session_state["result"] = {
-                        "file": uploaded_file.name,
+                        "file": source_name,
                         "image": annotated,
                         "rows": rows,
                         "secs": elapsed,
@@ -605,7 +622,7 @@ with right:
 <div class="empty-box">
   <div class="empty-anim">🩻</div>
   <h4>Results will appear here</h4>
-  <p>Upload an X-ray on the left — analysis starts automatically, no button needed.</p>
+  <p>Take a photo or choose an X-ray image — analysis starts automatically.</p>
 </div>
 """,
             unsafe_allow_html=True,
@@ -729,7 +746,7 @@ st.markdown(
     """
 <div class="app-footer">
   <strong>OsteoScan AI</strong> · Fracture Detection System · For educational &amp; demonstration purposes only<br>
-  Built with Streamlit &amp; YOLOv8 · Image never stored
+  Built with Streamlit &amp; YOLOv8 · Uploads are not persisted
 </div>
 """,
     unsafe_allow_html=True,
