@@ -5,21 +5,23 @@ import { Camera } from '@capacitor/camera';
 
 const SENSITIVITY = {
     "Strict: fewer alerts": 20,
-    "Balanced: fewer low-confidence alerts": 10,
-    "Sensitive (recommended for screening)": 5,
-    "Very sensitive: test low-confidence findings": 1,
+    "Balanced (Recommended)": 15,
+    "Sensitive: catches faint signals": 8,
+    "Very sensitive: shows all noise": 2,
 };
 
-// Hackathon presentation trick: YOLOv8 raw confidences are uncalibrated and naturally low (e.g. 15%).
-// This mathematical curve boosts them into a "User Confidence Score" that looks standard (75%-95%) to judges.
 function boostConfidence(rawPct) {
     if (rawPct <= 0) return 0;
-    return Math.min(99.9, 100 - (100 / (1 + rawPct * 0.6)));
+    // Less aggressive boost: stops 5% hallucinations from becoming 80%.
+    // raw 5 -> 12%
+    // raw 15 -> 37%
+    // raw 30 -> 75%
+    return Math.min(99.9, rawPct * 2.5);
 }
 
 function confidenceBand(boostedPct) {
-    if (boostedPct >= 88) return ["hi", "High Confidence"];
-    if (boostedPct >= 75) return ["mid", "Moderate Confidence"];
+    if (boostedPct >= 70) return ["hi", "High Confidence"];
+    if (boostedPct >= 40) return ["mid", "Moderate Confidence"];
     return ["lo", "Low Confidence"];
 }
 
@@ -27,13 +29,14 @@ function App() {
     const [imageSource, setImageSource] = useState("file");
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
-    const [sensitivity, setSensitivity] = useState(5);
+    const [sensitivity, setSensitivity] = useState(15); // Default to Balanced
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
     
     const fileInputRef = useRef(null);
     const webcamRef = useRef(null);
+    const resultsRef = useRef(null); // Added for auto-scrolling
     
     const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -97,6 +100,11 @@ function App() {
         
         setLoading(true);
         setError(null);
+        
+        // Auto-scroll to results on mobile
+        setTimeout(() => {
+            resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
         
         const formData = new FormData();
         formData.append("file", selectedFile);
@@ -251,7 +259,7 @@ function App() {
                     )}
                 </div>
 
-                <div className="panel">
+                <div className="panel" ref={resultsRef}>
                     <div className="panel-hdr">
                         <div className="panel-ico">🔬</div>
                         <div>
