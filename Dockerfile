@@ -9,6 +9,11 @@ WORKDIR /app
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
+
+# PREVENT OOM DURING BUILD: Explicitly install the CPU-only version of PyTorch.
+# By default, pip tries to download the 2.5GB GPU version of PyTorch on Linux, which instantly crashes Render's 512MB RAM limit during the build.
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip uninstall -y opencv-python && pip install --no-cache-dir --force-reinstall opencv-python-headless
 
