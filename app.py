@@ -518,6 +518,7 @@ with left:
             type=["jpg", "jpeg", "png"],
             help="JPG or PNG, up to 10 MB.",
         )
+        selected_file = uploaded_file
     with st.expander("💡 Tips for a better result"):
         st.markdown(
             "- Use a clear X-ray, not a blurry or cropped photo.\n"
