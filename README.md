@@ -1,68 +1,74 @@
-# Bone Fracture Detection
+# FractureX
 
-A Streamlit-based X-ray fracture screening demo. The deployed application uses a binary YOLO detector with one class: `fracture`.
+FractureX is an educational X-ray fracture screening demo. The React/Vite app
+uses a FastAPI service to run the YOLO model. Capacitor packages the React app
+for Android and iOS and connects its camera to the existing `/predict` endpoint.
 
-> This project is for education and demonstration only. It is not a medical diagnosis tool; X-rays must be reviewed by a qualified clinician.
+> This is not a medical diagnosis tool. X-rays must be reviewed by a qualified clinician.
 
-## Run locally
+## Run the API
 
-```powershell
-py -3.12 -m pip install -r requirements.txt
-streamlit run app.py
-```
-
-## Mobile app prototype
-
-The native client is in `mobile-app/`; its camera and image picker send an image
-to the separate FastAPI service in `api.py`. Keep the model weights available to
-the API process. Start the API from the repository root:
+From the repository root, with the model checkpoint available:
 
 ```powershell
 py -3.12 -m pip install -r requirements.txt
 py -3.12 -m uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
-In a second terminal, configure the API address in `mobile-app/.env` and start
-the Expo client:
+The active checkpoint is `best_binary_fracture.pt`. Set `FRACTURE_MODEL_PATH`
+to use another compatible model.
+
+## Run the React app
+
+In a second terminal:
 
 ```powershell
-cd mobile-app
+cd frontend
 Copy-Item .env.example .env
-# Edit .env and set the API URL for your computer or deployment.
 npm install
-npm start
+npm run dev -- --host 0.0.0.0
 ```
 
-Use `http://10.0.2.2:8000` for an Android emulator, `http://127.0.0.1:8000`
-for an iOS simulator, or `http://<computer-LAN-IP>:8000` for a physical phone
-on the same Wi-Fi network. For a deployed app, point `EXPO_PUBLIC_API_URL` at
-an HTTPS API deployment that has the checkpoint and the Python dependencies.
-The Streamlit Cloud website does not automatically host this FastAPI service.
+Set `VITE_API_URL` in `frontend/.env` to the API address. Use
+`http://localhost:8000` in a desktop browser, `http://10.0.2.2:8000` in the
+Android emulator, or `http://<computer-LAN-IP>:8000` on a physical phone on
+the same Wi-Fi network.
 
-The API reads uploaded images into memory and does not save them. Avoid sending
-identifiable patient information to this demonstration model.
+## Build the Android app
 
-The deployed checkpoint is `best_binary_fracture.pt` in the repository root. To temporarily use another compatible checkpoint, set `FRACTURE_MODEL_PATH` to its path.
+Install Android Studio and its Android SDK, then run these commands from
+`frontend/`:
 
-## Repository layout
-
-```text
-app.py                         Streamlit application
-best_binary_fracture.pt        Active binary fracture checkpoint
-best_verified_light.pt         Legacy six-class fallback checkpoint
-notebooks/                     Kaggle training and evaluation notebooks
-src/                           Dataset preparation and training utilities
-outputs/                       Downloaded models, reports, and visualizations
-tools/legacy/                  One-off migration scripts retained for history
+```powershell
+npm run build
+npx cap add android
+npx cap sync android
+npx cap open android
 ```
 
-## Current model
+`npx cap add android` is only needed once. Use Android Studio to run on a
+device or create a signed release. For iOS, use a Mac with Xcode and run:
 
-The active model was fine-tuned using BoneFractureYolo8, FracAtlas, and GRAZPEDWRI-DX. Its held-out test results were:
+```sh
+npx cap add ios
+npm run mobile:sync
+npx cap open ios
+```
 
-- Precision: 88.8%
-- Recall: 78.8%
-- mAP@50: 87.3%
-- mAP@50–95: 48.5%
+Set the camera and photo library usage descriptions in the iOS app's
+`Info.plist` before building.
 
-Training selections are recorded in `outputs/reports/model_selection.txt`.
+For a published build, configure `VITE_API_URL` with the HTTPS address of a
+deployed FastAPI service that has the model checkpoint. The React app and API
+can be deployed separately.
+
+Images are processed by the API and are not intentionally written to disk by
+this demo. Do not use it to make treatment decisions.
+
+## Project layout
+
+- `api.py`: FastAPI inference endpoint.
+- `frontend/`: React/Vite web app and Capacitor Android project configuration.
+- `best_binary_fracture.pt`: active binary fracture checkpoint.
+- `best_verified_light.pt`: legacy six-class checkpoint.
+- `src/`, `notebooks/`, `outputs/`: model training and evaluation materials.

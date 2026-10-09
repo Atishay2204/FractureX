@@ -1,0 +1,10 @@
+{
+  "appId": "com.fracturex.mobile",
+  "appName": "FractureX",
+  "webDir": "dist",
+  "plugins": {
+    "Camera": {
+      "permissions": ["camera", "photos"]
+    }
+  }
+}
