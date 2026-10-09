@@ -7,6 +7,15 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import base64
+import gc
+
+# EXTREME MEMORY SAVING: Force PyTorch/Math libraries to use only 1 thread to save RAM
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+import torch
+torch.set_num_threads(1)
+
 from ultralytics import YOLO
 
 app = FastAPI(title="FractureX API")
@@ -67,13 +76,23 @@ async def predict(file: UploadFile = File(...), confidence: int = Form(5)):
     try:
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
+        
+        # EXTREME MEMORY SAVING: Downscale large phone photos before NumPy/PyTorch touch them
+        image.thumbnail((800, 800))
+        img_array = np.array(image)
+        
+        # Free up the raw bytes and image objects from RAM immediately
+        del contents
+        del image
+        gc.collect()
+
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image file.")
 
     try:
         # Match the corrected model's 640px training resolution.
         results = model.predict(
-            np.array(image),
+            img_array,
             imgsz=640,
             conf=confidence / 100,
             iou=0.45,
