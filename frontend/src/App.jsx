@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import Webcam from 'react-webcam';
 import { Capacitor } from '@capacitor/core';
 import { Camera } from '@capacitor/camera';
 
@@ -16,6 +17,7 @@ function confidenceBand(pct) {
 }
 
 function App() {
+    const [imageSource, setImageSource] = useState("file");
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [sensitivity, setSensitivity] = useState(5);
@@ -24,7 +26,8 @@ function App() {
     const [error, setError] = useState(null);
     
     const fileInputRef = useRef(null);
-    const cameraInputRef = useRef(null);
+    const webcamRef = useRef(null);
+    
     const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
     const selectImageFile = (selectedFile) => {
@@ -45,12 +48,19 @@ function App() {
         e.target.value = '';
     };
 
-    const handleTakePhoto = async () => {
-        if (!Capacitor.isNativePlatform()) {
-            cameraInputRef.current?.click();
-            return;
+    const captureWebcam = useCallback(() => {
+        const imageSrc = webcamRef.current.getScreenshot();
+        if (imageSrc) {
+            fetch(imageSrc)
+                .then(res => res.blob())
+                .then(blob => {
+                    const capturedFile = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+                    selectImageFile(capturedFile);
+                });
         }
+    }, [webcamRef, sensitivity]);
 
+    const handleNativeCamera = async () => {
         try {
             const photo = await Camera.takePhoto({ quality: 90 });
             if (!photo.webPath) throw new Error("The camera did not return an image.");
@@ -106,6 +116,8 @@ function App() {
             setLoading(false);
         }
     };
+
+    const isNative = Capacitor.isNativePlatform();
 
     return (
         <div className="block-container">
@@ -163,30 +175,56 @@ function App() {
                             <div className="panel-sub">Take a photo or choose a JPG or PNG · max 10 MB</div>
                         </div>
                     </div>
-                    
-                    <div className="capture-actions">
-                        <button type="button" className="btn-primary" onClick={handleTakePhoto}>📷 Take a photo</button>
-                        <button type="button" className="btn-secondary" onClick={() => fileInputRef.current?.click()}>📁 Choose an image</button>
-                        <input
-                            ref={cameraInputRef}
-                            className="camera-input"
-                            type="file"
-                            accept="image/jpeg,image/png"
-                            capture="environment"
-                            onChange={handleFileChange}
-                        />
+
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', background: 'var(--bg-card)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--ink)' }}>
+                            <input type="radio" name="source" value="file" checked={imageSource === "file"} onChange={() => setImageSource("file")} />
+                            Choose a file
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--ink)' }}>
+                            <input type="radio" name="source" value="camera" checked={imageSource === "camera"} onChange={() => setImageSource("camera")} />
+                            Take a photo
+                        </label>
                     </div>
-                    <div className="file-uploader" onClick={() => fileInputRef.current?.click()}>
-                        <input 
-                            type="file" 
-                            accept="image/jpeg, image/png" 
-                            ref={fileInputRef} 
-                            onChange={handleFileChange} 
-                        />
-                        <p>Drag and drop file here</p>
-                        <p>Limit 10MB per file • JPG, PNG</p>
-                        <div className="btn">Browse files</div>
-                    </div>
+
+                    {imageSource === "file" && (
+                        <div className="file-uploader" onClick={() => fileInputRef.current?.click()}>
+                            <input 
+                                type="file" 
+                                accept="image/jpeg, image/png" 
+                                ref={fileInputRef} 
+                                onChange={handleFileChange} 
+                                style={{ display: 'none' }}
+                            />
+                            <p>Drag and drop file here</p>
+                            <p>Limit 10MB per file • JPG, PNG</p>
+                            <div className="btn">Browse files</div>
+                        </div>
+                    )}
+
+                    {imageSource === "camera" && (
+                        <div style={{ marginBottom: '1rem' }}>
+                            {isNative ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                                    <p style={{ marginBottom: '1rem', color: 'var(--ink-muted)' }}>Tap below to open your device camera.</p>
+                                    <button type="button" className="btn-primary" onClick={handleNativeCamera}>📷 Open Camera</button>
+                                </div>
+                            ) : (
+                                <div style={{ background: '#030710', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                                    <Webcam
+                                        audio={false}
+                                        ref={webcamRef}
+                                        screenshotFormat="image/jpeg"
+                                        videoConstraints={{ facingMode: "environment" }}
+                                        style={{ width: '100%', borderRadius: 'var(--radius-xs)', display: 'block' }}
+                                    />
+                                    <button type="button" className="btn-primary" onClick={captureWebcam} style={{ marginTop: '0.5rem' }}>
+                                        📸 Capture Photo
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <div className="select-wrapper">
                         <label>⚙️ Detection sensitivity</label>
@@ -199,7 +237,7 @@ function App() {
                     
                     <div className="privacy-tag">🔒 Images are processed for analysis; this demo does not persist uploads.</div>
 
-                    {previewUrl && !result && (
+                    {previewUrl && !result && !loading && (
                         <div className="img-display">
                             <img src={previewUrl} alt="Uploaded" />
                         </div>
