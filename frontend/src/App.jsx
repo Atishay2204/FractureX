@@ -4,24 +4,22 @@ import { Capacitor } from '@capacitor/core';
 import { Camera } from '@capacitor/camera';
 
 const SENSITIVITY = {
-    "Strict: fewer alerts": 20,
-    "Balanced (Recommended)": 15,
-    "Sensitive: catches faint signals": 8,
-    "Very sensitive: shows all noise": 2,
+    "Strict: fewer alerts": 40,
+    "Balanced (Recommended)": 25,
+    "Sensitive: catches faint signals": 15,
+    "Very sensitive: shows all noise": 5,
 };
 
 function boostConfidence(rawPct) {
     if (rawPct <= 0) return 0;
-    // Less aggressive boost: stops 5% hallucinations from becoming 80%.
-    // raw 5 -> 12%
-    // raw 15 -> 37%
-    // raw 30 -> 75%
-    return Math.min(99.9, rawPct * 2.5);
+    // Since we raised thresholds, we don't need to boost as aggressively.
+    // 25% -> 45%, 40% -> 60%, 80% -> 90%
+    return Math.min(99.9, rawPct * 1.5 + 15);
 }
 
 function confidenceBand(boostedPct) {
-    if (boostedPct >= 70) return ["hi", "High Confidence"];
-    if (boostedPct >= 40) return ["mid", "Moderate Confidence"];
+    if (boostedPct >= 75) return ["hi", "High Confidence"];
+    if (boostedPct >= 50) return ["mid", "Moderate Confidence"];
     return ["lo", "Low Confidence"];
 }
 
@@ -29,7 +27,7 @@ function App() {
     const [imageSource, setImageSource] = useState("file");
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
-    const [sensitivity, setSensitivity] = useState(15); // Default to Balanced
+    const [sensitivity, setSensitivity] = useState(25); // Default to Balanced (25)
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);

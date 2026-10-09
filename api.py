@@ -91,10 +91,9 @@ async def predict(file: UploadFile = File(...), confidence: int = Form(5)):
         raise HTTPException(status_code=400, detail="Invalid image file.")
 
     try:
-        # Match the corrected model's 640px training resolution.
         results = model.predict(
             img_array,
-            imgsz=640,
+            imgsz=800,
             conf=confidence / 100,
             iou=0.45,
             max_det=3,
