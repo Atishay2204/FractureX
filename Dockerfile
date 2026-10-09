@@ -10,6 +10,7 @@ WORKDIR /app
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip uninstall -y opencv-python && pip install --no-cache-dir opencv-python-headless
 
 # Copy the API code and model weights
 COPY api.py .
