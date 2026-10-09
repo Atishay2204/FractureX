@@ -14,7 +14,7 @@ from ultralytics import YOLO
 # Page config  (NO sidebar)
 # ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="OsteoScan AI · Fracture Detection",
+    page_title="FractureX · Fracture Detection",
     page_icon="🩻",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -419,7 +419,7 @@ st.markdown(
 <div class="topnav">
   <div class="topnav-left">
     <div class="topnav-logo">🩻</div>
-    <div class="topnav-brand">Osteo<span>Scan</span> AI</div>
+    <div class="topnav-brand">Fracture<span>X</span></div>
   </div>
   <div class="topnav-right">
     <span class="topnav-link">Fracture Screening</span>
@@ -500,7 +500,7 @@ with left:
     )
     image_source = st.radio(
         "Image source",
-        ["Take a photo", "Choose a file"],
+        ["Choose a file", "Take a photo"],
         horizontal=True,
         label_visibility="collapsed",
     )
@@ -745,7 +745,7 @@ with right:
 st.markdown(
     """
 <div class="app-footer">
-  <strong>OsteoScan AI</strong> · Fracture Detection System · For educational &amp; demonstration purposes only<br>
+  <strong>FractureX</strong> · Fracture Detection System · For educational &amp; demonstration purposes only<br>
   Built with Streamlit &amp; YOLOv8 · Uploads are not persisted
 </div>
 """,

@@ -29,6 +29,9 @@ build/
 .env
 venv/
 .venv/
+mobile-app/.expo/
+mobile-app/node_modules/
+mobile-app/.env
 
 # OS
 .DS_Store

@@ -11,6 +11,37 @@ py -3.12 -m pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Mobile app prototype
+
+The native client is in `mobile-app/`; its camera and image picker send an image
+to the separate FastAPI service in `api.py`. Keep the model weights available to
+the API process. Start the API from the repository root:
+
+```powershell
+py -3.12 -m pip install -r requirements.txt
+py -3.12 -m uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+In a second terminal, configure the API address in `mobile-app/.env` and start
+the Expo client:
+
+```powershell
+cd mobile-app
+Copy-Item .env.example .env
+# Edit .env and set the API URL for your computer or deployment.
+npm install
+npm start
+```
+
+Use `http://10.0.2.2:8000` for an Android emulator, `http://127.0.0.1:8000`
+for an iOS simulator, or `http://<computer-LAN-IP>:8000` for a physical phone
+on the same Wi-Fi network. For a deployed app, point `EXPO_PUBLIC_API_URL` at
+an HTTPS API deployment that has the checkpoint and the Python dependencies.
+The Streamlit Cloud website does not automatically host this FastAPI service.
+
+The API reads uploaded images into memory and does not save them. Avoid sending
+identifiable patient information to this demonstration model.
+
 The deployed checkpoint is `best_binary_fracture.pt` in the repository root. To temporarily use another compatible checkpoint, set `FRACTURE_MODEL_PATH` to its path.
 
 ## Repository layout
