@@ -35,6 +35,7 @@ function App() {
     const fileInputRef = useRef(null);
     const webcamRef = useRef(null);
     const resultsRef = useRef(null); // Added for auto-scrolling
+    const currentUploadId = useRef(0); // Added for tracking latest upload
     
     const apiUrl = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -44,6 +45,11 @@ function App() {
             setError("Choose an image that is 10 MB or smaller.");
             return;
         }
+        
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
+        
         setFile(selectedFile);
         setPreviewUrl(URL.createObjectURL(selectedFile));
         setResult(null);
@@ -66,7 +72,7 @@ function App() {
                     selectImageFile(capturedFile);
                 });
         }
-    }, [webcamRef, sensitivity]);
+    }, [webcamRef, sensitivity, previewUrl]);
 
     const handleNativeCamera = async () => {
         try {
@@ -96,6 +102,8 @@ function App() {
     const handleUpload = async (selectedFile, currentSensitivity) => {
         if (!selectedFile) return;
         
+        const uploadId = ++currentUploadId.current;
+        
         setLoading(true);
         setError(null);
         
@@ -114,6 +122,11 @@ function App() {
                 body: formData,
             });
             const data = await response.json();
+            
+            if (uploadId !== currentUploadId.current) {
+                return; // Ignore response if a newer upload started
+            }
+            
             if (!response.ok) {
                 throw new Error(data.detail || "Failed to process image.");
             }
@@ -124,9 +137,14 @@ function App() {
                 fileName: selectedFile.name
             });
         } catch (err) {
+            if (uploadId !== currentUploadId.current) {
+                return; // Ignore error if a newer upload started
+            }
             setError(err.message || "Something went wrong.");
         } finally {
-            setLoading(false);
+            if (uploadId === currentUploadId.current) {
+                setLoading(false);
+            }
         }
     };
 
